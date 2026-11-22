@@ -3,9 +3,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import QuoteModel, GroupModel, UserModel
+from ..models import QuoteModel, GroupModel, UserModel, GroupMemberModel
 from ..schemas import QuoteResponse, QuoteCreatePayload, QuoteRequestPayload
 from ..auth import require_admin
+from ..services.notifications import dispatch_notification
 
 router = APIRouter(prefix="/admin/quotes", tags=["admin-quotes"])
 
@@ -92,4 +93,18 @@ def publish_quote(
     group.status = "quoted"
     db.commit()
     db.refresh(quote)
+
+    # Dispatch notifications to all pooled travellers in the group
+    members = db.query(GroupMemberModel).filter(GroupMemberModel.group_id == group.id).all()
+    for m in members:
+        user = db.query(UserModel).filter(UserModel.id == m.user_id).first()
+        if user:
+            dispatch_notification(
+                db=db,
+                user=user,
+                title=f"New quotation published for {group.route}!",
+                message=f"{quote.airline_name} published a group quote at ₹{quote.price_per_passenger:,.0f} per passenger. Compare terms in your dashboard.",
+                link=f"/groups/{group.id}",
+            )
+
     return QuoteResponse.model_validate(quote)

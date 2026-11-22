@@ -138,3 +138,20 @@ export interface Notification {
   created_at: string;
   link?: string;
 }
+
+export interface AirlineDesk {
+  airline: string;
+  desk: string;
+  email: string;
+}
+
+export interface GroupRFQ {
+  reference_code: string;
+  group_id: string;
+  route: string;
+  seats: number;
+  target_date: string;
+  subject: string;
+  email_body: string;
+  airline_desks: AirlineDesk[];
+}

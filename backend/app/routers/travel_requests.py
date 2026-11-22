@@ -10,6 +10,7 @@ from ..schemas import (
     AirportResponse,
 )
 from ..auth import get_current_user
+from ..services.clustering import cluster_and_form_groups
 
 router = APIRouter(prefix="/travel-requests", tags=["travel-requests"])
 
@@ -64,6 +65,11 @@ def create_travel_request(
     db.add(req)
     db.commit()
     db.refresh(req)
+
+    # Automatically check if this requirement unlocks a group cluster (threshold >= 10 seats)
+    cluster_and_form_groups(db, min_seats_threshold=10)
+    db.refresh(req)
+
     return format_request(req)
 
 @router.get("/my", response_model=List[TravelRequestResponse])

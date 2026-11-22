@@ -1,5 +1,5 @@
-import type { Analytics, FestivalDemand } from "@/types";
-import { api, call } from "./api";
+import type { Analytics, FestivalDemand, GroupRFQ } from "@/types";
+import { api, call, ApiError } from "./api";
 import { groups, requests, requireAdmin, users } from "./mockDb";
 
 export const adminService = {
@@ -48,5 +48,41 @@ export const adminService = {
         };
       },
       async () => (await api.get("/admin/analytics")).data,
+    ),
+  getGroupRFQ: (groupId: string) =>
+    call<GroupRFQ>(
+      () => {
+        requireAdmin();
+        const g = groups.find((x) => x.id === groupId);
+        if (!g) throw new ApiError(404, "Group not found");
+        return {
+          reference_code: `FT-RFQ-${g.id.toUpperCase()}`,
+          group_id: g.id,
+          route: g.route,
+          seats: g.seats_filled,
+          target_date: g.target_date,
+          subject: `[FT-RFQ-${g.id.toUpperCase()}] Group Quotation Request: ${g.origin.iata_code} → ${g.destination.iata_code} (${g.seats_filled} Passenger Seats)`,
+          email_body: `To: Airline Group Travel Desk\n\nRequest for group quote on route ${g.route} for ${g.seats_filled} passenger seats on ${g.target_date}.\nAcceptable window: ${g.window_start} to ${g.window_end}.\n\nFlyTogether aggregates demand. It does not sell tickets or reserve seats.`,
+          airline_desks: [
+            { airline: "IndiGo", desk: "Group Desk", email: "groups@goindigo.in" },
+            { airline: "Air India", desk: "Group Booking Services", email: "groupdesk@airindia.com" },
+            { airline: "SpiceJet", desk: "Special Group Travel", email: "groups@spicejet.com" },
+            { airline: "Akasa Air", desk: "Group Sales", email: "groupsales@akasaair.com" },
+          ],
+        };
+      },
+      async () => (await api.get(`/admin/groups/${groupId}/rfq`)).data,
+    ),
+  triggerClustering: (minSeats = 10) =>
+    call<{ status: string; message: string; data: unknown }>(
+      () => {
+        requireAdmin();
+        return {
+          status: "success",
+          message: "Clustering run complete in demo mode.",
+          data: { groups_created: 0, requests_grouped: 0, group_ids: [] },
+        };
+      },
+      async () => (await api.post(`/admin/clustering/run?min_seats=${minSeats}`)).data,
     ),
 };
