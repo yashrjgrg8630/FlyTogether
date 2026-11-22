@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: flytogether_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flytogether}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flytogether_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-flytogether}
+    ports:
+      - "5432:5432"
+    volumes:
+      - flytogether_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flytogether} -d ${POSTGRES_DB:-flytogether}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: flytogether_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-flytogether}:${POSTGRES_PASSWORD:-flytogether_dev}@db:5432/${POSTGRES_DB:-flytogether}
+      - SECRET_KEY=${SECRET_KEY:-flytogether_super_secret_jwt_key_2026}
+      - DUFFEL_LIVE_ENABLED=false
+      - DUFFEL_ACCESS_TOKEN=${DUFFEL_ACCESS_TOKEN:-}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  flytogether_pgdata:
+    driver: local
